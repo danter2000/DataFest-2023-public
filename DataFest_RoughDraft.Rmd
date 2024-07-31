@@ -1,0 +1,174 @@
+---
+title: "DataFest Rough RMD"
+output: html_document
+date: '2023-04-01'
+---
+
+```{r setup}
+
+# Load Libraries
+library(tidyverse)
+library(survival)
+library(timereg)
+library(numDeriv)
+library(foreign)
+library(flexsurv)
+library(survminer)
+library(glmnet)
+library(extrafont)
+
+# Load data
+
+```
+
+```{r Data Wrangling}
+
+
+
+```
+
+```{r EDA}
+
+
+
+```
+
+```{r Visualizations}
+
+
+
+```
+
+```{r Dante's Chunk}
+
+questionposts <- read_csv("C:\\Users\\dante\\Downloads\\questionposts.csv") %>% mutate(StateAbbr = as.factor(StateAbbr)) %>% mutate(PostText = str_replace(PostText, "â€™", "'")) %>% mutate(PostText = str_replace(PostText, " â€™ ", "'")) %>% filter(StateAbbr == "")
+
+questions <- read_csv("C:\\Users\\dante\\Downloads\\DataFest 2023 Data For Distribution-20230401T023639Z-001\\DataFest 2023 Data For Distribution\\data\\questions.csv") %>% mutate(StateAbbr = as.factor(StateAbbr)) %>% mutate(Category = as.factor(Category)) %>% mutate(AskedOnUtc = as.POSIXct(str_replace(AskedOnUtc, " ", "T"), format = "%Y-%m-%dT%H:%M:%S"), ClosedOnUtc = as.POSIXct(str_replace(ClosedOnUtc, " ", "T"), format = "%Y-%m-%dT%H:%M:%S"), TakenOnUtc = as.POSIXct(str_replace(TakenOnUtc, " ", "T"), format = "%Y-%m-%dT%H:%M:%S") , duration = as.numeric(ClosedOnUtc - AskedOnUtc) / (60*60*24), duration2 = as.numeric(TakenOnUtc - AskedOnUtc) / (60*60*24)) %>% mutate(event = ifelse(ClosedByAttorneyUno == "NULL", 0, 1)) %>% mutate(HomelessOrOther = ifelse(Category == "Housing and Homelessness", "Housing and Homelessness", "Other Category")) %>% mutate(FamilyOrOther = ifelse(Category == "Family and Children", "Family and Children", "Other Category"))
+
+clients <- read_csv("C:\\Users\\dante\\Downloads\\DataFest 2023 Data For Distribution-20230401T023639Z-001\\DataFest 2023 Data For Distribution\\data\\clients.csv") %>% mutate(StateAbbr = as.factor(StateAbbr)) %>% mutate(County = as.factor(County)) %>% mutate(StateName = as.factor(StateName)) %>% mutate(EthnicIdentity = as.factor(EthnicIdentity)) %>% mutate(Gender = as.factor(Gender)) %>% mutate(Imprisoned = as.factor(Imprisoned)) %>% mutate(MaritalStatus = as.factor(MaritalStatus)) %>% mutate(Veteran = as.factor(Veteran))
+
+attorneytimeentries <- read_csv("C:\\Users\\dante\\Downloads\\DataFest 2023 Data For Distribution-20230401T023639Z-001\\DataFest 2023 Data For Distribution\\data\\attorneytimeentries.csv") %>% mutate(StateAbbr = as.factor(StateAbbr)) %>% filter(StateAbbr == "CA")
+
+attorneys <- read_csv("C:\\Users\\dante\\Downloads\\DataFest 2023 Data For Distribution-20230401T023639Z-001\\DataFest 2023 Data For Distribution\\data\\attorneys.csv") %>% mutate(StateAbbr = as.factor(StateAbbr)) %>% mutate(City = as.factor(City)) %>% mutate(County = as.factor(County)) %>% mutate(StateName = as.factor(StateName)) %>% filter(StateAbbr == "CA")
+
+categories <- read_csv("C:\\Users\\dante\\Downloads\\DataFest 2023 Data For Distribution-20230401T023639Z-001\\DataFest 2023 Data For Distribution\\data\\categories.csv") %>% mutate(StateAbbr = as.factor(StateAbbr)) %>% mutate(Category = as.factor(Category)) %>% filter(StateAbbr == "CA")
+
+statesites <- read_csv("C:\\Users\\dante\\Downloads\\DataFest 2023 Data For Distribution-20230401T023639Z-001\\DataFest 2023 Data For Distribution\\data\\statesites.csv") %>% mutate(StateAbbr = as.factor(StateAbbr)) %>% mutate(StateName = as.factor(StateName)) %>% filter(StateAbbr == "CA")
+
+subcategories <- read_csv("C:\\Users\\dante\\Downloads\\DataFest 2023 Data For Distribution-20230401T023639Z-001\\DataFest 2023 Data For Distribution\\data\\subcategories.csv") %>% mutate(StateAbbr = as.factor(StateAbbr)) %>% mutate(Subcategory = as.factor(Subcategory)) %>% filter(StateAbbr == "CA")
+
+clients_questions <- questions %>%
+                     rename(ClientUno = AskedByClientUno) %>% 
+                     inner_join(clients, by = "ClientUno") %>% 
+                     na.omit() %>%
+                     mutate(Age = as.numeric(Age),
+                            NumberInHousehold = as.numeric(NumberInHousehold),
+                            AnnualIncome = as.numeric(AnnualIncome),
+                            IncomeDiff = AnnualIncome - as.numeric(AllowedIncome)) %>%
+                    na.omit() %>% filter(StateAbbr.x == "CA")
+
+nlevels(clients_questions$Category)
+
+nlevels(questions$Category)
+
+# djd
+
+```
+
+```{r Survival Analysis Baby}
+
+s.meth <- with(clients_questions, Surv(duration, event == 1))
+# Survival curve with red line at approximate 1 year survival probability
+km_homelessness <- survfit(s.meth ~ HomelessOrOther, data = clients_questions)
+km_family <- survfit(s.meth ~ FamilyOrOther, data = clients_questions)
+
+homeless_surv <- ggsurvplot(km_homelessness,
+           conf.int = T,
+           pval = TRUE,
+           surv.median.line = "hv",
+           title = "Response Time Between LSC Categories",
+           palette = c("dodgerblue3", "orange2"),
+           legend.labs = c("Homeless and Housing Category", "Other Categories"),
+           ggtheme = theme_classic(base_size = 20, base_family = "Forum"),
+           font.family = "Forum")
+
+homeless_surv
+
+x <- ggpar(homeless_surv, 
+      font.main = c(35, "bold"),
+      font.x = c(30, "bold"),
+      font.y = c(30, "bold"),
+      font.caption = c(100, "bold"), 
+      font.legend = c(22, "bold"), 
+      font.tickslab = c(25, "bold"),
+      font.submain = c(40, "bold"))
+
+x
+
+family_surv <- ggsurvplot(km_family,
+           conf.int = T,
+           pval = TRUE,
+           surv.median.line = "hv",
+           title = "Response Time Between LSC Categories",
+           palette = c("dodgerblue3", "orange2"),
+           legend.labs = c("Family and Children Category", "Other Categories"),
+           ggtheme = theme_classic(base_size = 20, base_family = "Forum"),
+           font.family = "Forum")
+
+family_surv
+
+source("fitparametric.R")
+
+fit_exp <- fitparametric(s.meth, dist = "exp")
+fit_wiebull <- fitparametric(s.meth, dist = "weibull")
+fit_ggamma <- fitparametric(s.meth, dist = "gengamma")
+
+X <- model.matrix(duration ~ HomelessOrOther + Age  + NumberInHousehold + IncomeDiff + Gender + MaritalStatus + Veteran + Imprisoned, data = clients_questions)
+Y <- with(clients_questions$duration)
+
+cvfit <- cv.glmnet(X, s.meth, family = "cox", type.measure = "C")
+
+plot(glmnet(X, s.meth, family = "cox"))
+
+
+res <- coef(cvfit, s = "lambda.1se")
+
+res
+
+res[which(res != 0)]
+
+coxph(s.meth ~ HomelessOrOther, data
+      = clients_questions)
+
+coxph(s.meth ~ FamilyOrOther, data
+      = clients_questions)
+
+new_df <- clients_questions %>% group_by(Category) %>% summarise(duration = mean(duration, na.rm = T)) %>% arrange(duration)
+
+new_df$Category <- factor(new_df$Category, levels = unique(new_df$Category))
+
+ggplot(data = new_df, mapping = aes(y = Category, x = duration)) + geom_bar(stat = "identity", fill = "#004c6d") + theme_minimal() +
+           theme(text = element_text(family = "Forum"), axis.text = element_text(size = 20))
+
+ggplot(data = clients_questions, aes(x = duration, fill = Category)) +
+                    geom_histogram(aes(y = ..density..), alpha = 0.5) 
+
+                  
+
+```
+
+```{r }
+
+new_df <- clients_questions %>% group_by(Category) %>% summarise(duration = mean(duration, na.rm = T)) %>% arrange(duration)
+new_df$Category <- factor(new_df$Category, levels = unique(new_df$Category))
+ggplot(data = new_df, mapping = aes(y = Category, x = duration)) + geom_bar(stat = "identity", fill = "#004c6d") + theme_minimal() +
+          theme(text = element_text(family = "Times New Roman"), axis.text.y = element_text(size = 15), axis.title = element_text(size=15))
+
+ggplot(data=new_df, mapping = aes(x=duration,y=Category, fill=factor(ifelse(Category %in% c("Housing and Homelessness", "Family and Children"), "Highlighted", "Normal")))) +
+  geom_bar(stat="identity", show.legend = F) +
+  scale_fill_manual(name = "Category", values=c("#004c6d","grey50")) +
+  theme_classic() +
+  theme(text = element_text(family = "Forum"), axis.text.y = element_text(size = 12), axis.title = element_text(size = 12)) +
+  ggtitle("Average Response Time in Days") + scale_x_continuous(name ="Duration")
+
+```
